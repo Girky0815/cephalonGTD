@@ -33,6 +33,7 @@ class AiCoreEngineImpl @Inject constructor(
         return try {
             val model = GenerativeModel(
                 generationConfig = generationConfig {
+                    context = this@AiCoreEngineImpl.context
                     temperature = 0.2f
                     maxOutputTokens = 1024
                 }
