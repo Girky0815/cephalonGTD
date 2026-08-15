@@ -11,6 +11,7 @@ import jp.girky.taskmanage.cephalonGTD.ui.task.TaskScreen
 sealed class Screen(val route: String) {
     data object Tasks : Screen("tasks")
     data object Settings : Screen("settings")
+    data object Diagnostics : Screen("diagnostics")
 }
 
 @Composable
@@ -30,6 +31,16 @@ fun CephalonNavGraph(
         }
         composable(Screen.Settings.route) {
             SettingsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToDiagnostics = {
+                    navController.navigate(Screen.Diagnostics.route)
+                }
+            )
+        }
+        composable(Screen.Diagnostics.route) {
+            jp.girky.taskmanage.cephalonGTD.ui.diagnostics.DiagnosticsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

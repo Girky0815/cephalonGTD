@@ -59,7 +59,31 @@ class AiCoreEngineImpl @Inject constructor(
         }
     }
 
-    override suspend fun diagnoseGeminiNano(testPrompt: String): AiDiagnosticsResult {
+    override fun runStepByStepDiagnostics(testPrompt: String): kotlinx.coroutines.flow.Flow<List<DiagnosticStepItem>> = kotlinx.coroutines.flow.flow {
+        val steps = mutableListOf(
+            DiagnosticStepItem(
+                id = "aicore",
+                title = "AICore パッケージの確認",
+                description = "システム内に AICore がインストールされているか確認中...",
+                status = DiagnosticStatus.RUNNING
+            ),
+            DiagnosticStepItem(
+                id = "model",
+                title = "Gemini Nano モデルの検出",
+                description = "オンデバイスモデルの初期化待機中...",
+                status = DiagnosticStatus.PENDING
+            ),
+            DiagnosticStepItem(
+                id = "inference",
+                title = "テストプロンプト推論テスト",
+                description = "推論待機中...",
+                status = DiagnosticStatus.PENDING
+            )
+        )
+        emit(steps.toList())
+
+        // 1. AICore パッケージ確認
+        kotlinx.coroutines.delay(200)
         var isAiCoreInstalled = false
         var aiCoreVersionName: String? = null
         val aiCorePackages = listOf("com.google.android.aicore", "com.google.android.as")
@@ -75,43 +99,75 @@ class AiCoreEngineImpl @Inject constructor(
             }
         }
 
-        val availableModels = mutableListOf<String>()
-        var testResult: String? = null
-        var isSuccess = false
-        var statusMsg = ""
-
-        try {
-            val (model, initError) = createModel()
-            if (model != null) {
-                availableModels.add("Gemini Nano 4 Fast / Full")
-                availableModels.add("Gemini Nano 3 [TPU]")
-                val response = model.generateContent(testPrompt)
-                testResult = response.text
-                if (!testResult.isNullOrBlank()) {
-                    isSuccess = true
-                    statusMsg = "Gemini Nano が正常に応答しました。オンデバイス推論が完全に機能しています。"
-                } else {
-                    statusMsg = "AICore に接続されましたが、モデルから空の応答が返されました。"
-                }
-            } else {
-                availableModels.add("なし (初期化失敗)")
-                statusMsg = "GenerativeModel 初期化エラー: $initError"
-            }
-        } catch (e: Throwable) {
-            val exName = e.javaClass.name
-            val exMsg = e.localizedMessage ?: e.message ?: "詳細不明"
-            statusMsg = "AICore推論エラー [$exName]: $exMsg"
-            availableModels.add("なし (実行時例外)")
+        if (isAiCoreInstalled) {
+            steps[0] = steps[0].copy(
+                status = DiagnosticStatus.SUCCESS,
+                description = "AICore が正常に検出されました",
+                detailMessage = aiCoreVersionName
+            )
+        } else {
+            steps[0] = steps[0].copy(
+                status = DiagnosticStatus.FAILED,
+                description = "AICore パッケージが端末に見つかりません",
+                detailMessage = "未検出 (Pixel 9等のAICore対応環境が必要です)"
+            )
         }
+        steps[1] = steps[1].copy(status = DiagnosticStatus.RUNNING, description = "Gemini Nano モデルを初期化・接続中...")
+        emit(steps.toList())
 
-        return AiDiagnosticsResult(
-            isAiCoreInstalled = isAiCoreInstalled,
-            aiCoreVersion = aiCoreVersionName ?: "未検出",
-            availableModels = availableModels,
-            testPromptResult = testResult,
-            isSuccess = isSuccess,
-            message = statusMsg
-        )
+        // 2. モデル初期化・接続
+        kotlinx.coroutines.delay(300)
+        val (model, initError) = createModel()
+        if (model != null) {
+            steps[1] = steps[1].copy(
+                status = DiagnosticStatus.SUCCESS,
+                description = "Gemini Nano モデルが利用可能です",
+                detailMessage = "モデル: Gemini Nano 4 Fast / Full, Gemini Nano 3 [TPU]"
+            )
+            steps[2] = steps[2].copy(status = DiagnosticStatus.RUNNING, description = "「$testPrompt」をオンデバイス推論中...")
+            emit(steps.toList())
+
+            // 3. テストプロンプト推論
+            kotlinx.coroutines.delay(200)
+            try {
+                val response = model.generateContent(testPrompt)
+                val testResult = response.text
+                if (!testResult.isNullOrBlank()) {
+                    steps[2] = steps[2].copy(
+                        status = DiagnosticStatus.SUCCESS,
+                        description = "オンデバイス推論が正常に応答しました",
+                        detailMessage = "応答: $testResult"
+                    )
+                } else {
+                    steps[2] = steps[2].copy(
+                        status = DiagnosticStatus.FAILED,
+                        description = "モデルから空の応答が返されました",
+                        detailMessage = "応答が空です"
+                    )
+                }
+            } catch (e: Throwable) {
+                val exName = e.javaClass.simpleName
+                val exMsg = e.localizedMessage ?: e.message ?: "詳細不明"
+                steps[2] = steps[2].copy(
+                    status = DiagnosticStatus.FAILED,
+                    description = "推論中にエラーが発生しました",
+                    detailMessage = "[$exName] $exMsg"
+                )
+            }
+            emit(steps.toList())
+        } else {
+            steps[1] = steps[1].copy(
+                status = DiagnosticStatus.FAILED,
+                description = "Gemini Nano モデルの初期化に失敗しました",
+                detailMessage = initError ?: "初期化エラー"
+            )
+            steps[2] = steps[2].copy(
+                status = DiagnosticStatus.FAILED,
+                description = "モデル未初期化のため推論をスキップしました",
+                detailMessage = "モデルが利用できません"
+            )
+            emit(steps.toList())
+        }
     }
 
     override suspend fun decomposeWbs(taskText: String): List<WbsSubTask> {

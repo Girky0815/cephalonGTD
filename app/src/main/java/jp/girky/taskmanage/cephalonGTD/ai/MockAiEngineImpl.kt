@@ -7,19 +7,47 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+
 @Singleton
 class MockAiEngineImpl @Inject constructor() : AiEngine {
     override suspend fun isAvailable(): Boolean = true
 
-    override suspend fun diagnoseGeminiNano(testPrompt: String): AiDiagnosticsResult {
-        return AiDiagnosticsResult(
-            isAiCoreInstalled = false,
-            aiCoreVersion = "N/A (Mock/Fallback)",
-            availableModels = listOf("Gemini Nano (Mock Engine)"),
-            testPromptResult = "こんにちは！オンデバイスAIモックです。",
-            isSuccess = true,
-            message = "AICore未検出のため、内蔵ルールベースモックエンジンが正常稼働しています。"
+    override fun runStepByStepDiagnostics(testPrompt: String): Flow<List<DiagnosticStepItem>> = flow {
+        val steps = mutableListOf(
+            DiagnosticStepItem("aicore", "AICore インストール確認", "端末に AICore が存在するか確認中...", DiagnosticStatus.RUNNING),
+            DiagnosticStepItem("model", "モデル利用可能性の確認", "Gemini Nano モデルの待機中...", DiagnosticStatus.PENDING),
+            DiagnosticStepItem("inference", "テストプロンプト推論テスト", "推論の待機中...", DiagnosticStatus.PENDING)
         )
+        emit(steps.toList())
+
+        delay(400)
+        steps[0] = steps[0].copy(
+            status = DiagnosticStatus.FAILED,
+            description = "AICore が端末に見つかりません",
+            detailMessage = "未検出 (Mock環境でフォールバック中)"
+        )
+        steps[1] = steps[1].copy(status = DiagnosticStatus.RUNNING, description = "フォールバックモックモデルを初期化中...")
+        emit(steps.toList())
+
+        delay(400)
+        steps[1] = steps[1].copy(
+            status = DiagnosticStatus.SUCCESS,
+            description = "モックモデルが利用可能です",
+            detailMessage = "Gemini Nano (Mock Engine)"
+        )
+        steps[2] = steps[2].copy(status = DiagnosticStatus.RUNNING, description = "テストプロンプトをモック推論中...")
+        emit(steps.toList())
+
+        delay(400)
+        steps[2] = steps[2].copy(
+            status = DiagnosticStatus.SUCCESS,
+            description = "推論テスト成功",
+            detailMessage = "応答: こんにちは！オンデバイスAIモックです。"
+        )
+        emit(steps.toList())
     }
 
     override suspend fun decomposeWbs(taskText: String): List<WbsSubTask> {
