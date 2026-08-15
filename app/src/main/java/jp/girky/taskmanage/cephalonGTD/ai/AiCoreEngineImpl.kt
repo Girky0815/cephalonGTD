@@ -29,17 +29,22 @@ class AiCoreEngineImpl @Inject constructor(
         isLenient = true
     }
 
-    private fun getModel(): GenerativeModel? {
+    private fun createModel(): Pair<GenerativeModel?, String?> {
         return try {
-            GenerativeModel(
+            val model = GenerativeModel(
                 generationConfig = generationConfig {
                     temperature = 0.2f
                     maxOutputTokens = 1024
                 }
             )
+            Pair(model, null)
         } catch (e: Throwable) {
-            null
+            Pair(null, "${e.javaClass.simpleName}: ${e.message ?: e.localizedMessage}")
         }
+    }
+
+    private fun getModel(): GenerativeModel? {
+        return createModel().first
     }
 
     override suspend fun isAvailable(): Boolean {
@@ -75,24 +80,27 @@ class AiCoreEngineImpl @Inject constructor(
         var statusMsg = ""
 
         try {
-            val model = getModel()
+            val (model, initError) = createModel()
             if (model != null) {
-                availableModels.add("Gemini Nano (オンデバイス AICore)")
+                availableModels.add("Gemini Nano 4 Fast / Full")
+                availableModels.add("Gemini Nano 3 [TPU]")
                 val response = model.generateContent(testPrompt)
                 testResult = response.text
                 if (!testResult.isNullOrBlank()) {
                     isSuccess = true
                     statusMsg = "Gemini Nano が正常に応答しました。オンデバイス推論が完全に機能しています。"
                 } else {
-                    statusMsg = "AICore に接続されましたが、空の応答が返されました。"
+                    statusMsg = "AICore に接続されましたが、モデルから空の応答が返されました。"
                 }
             } else {
-                availableModels.add("なし (フォールバックモックが動作中)")
-                statusMsg = "端末に Gemini Nano / AICore モデルが未ダウンロードまたは初期化できませんでした。"
+                availableModels.add("なし (初期化失敗)")
+                statusMsg = "GenerativeModel 初期化エラー: $initError"
             }
         } catch (e: Throwable) {
-            statusMsg = "AICore実行エラー: ${e.localizedMessage ?: e.message}"
-            availableModels.add("なし (エラー発生)")
+            val exName = e.javaClass.name
+            val exMsg = e.localizedMessage ?: e.message ?: "詳細不明"
+            statusMsg = "AICore推論エラー [$exName]: $exMsg"
+            availableModels.add("なし (実行時例外)")
         }
 
         return AiDiagnosticsResult(
