@@ -1,47 +1,46 @@
 package jp.girky.taskmanage.cephalonGTD
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.fragment.app.FragmentActivity
+import dagger.hilt.android.AndroidEntryPoint
+import jp.girky.taskmanage.cephalonGTD.data.preferences.UserPreferencesRepository
+import jp.girky.taskmanage.cephalonGTD.security.SecurityManager
+import jp.girky.taskmanage.cephalonGTD.ui.navigation.CephalonNavGraph
 import jp.girky.taskmanage.cephalonGTD.ui.theme.CephalonGTDTheme
+import javax.inject.Inject
 
-class MainActivity : ComponentActivity() {
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
-    setContent {
-      CephalonGTDTheme {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-          Greeting(
-            name = "Android",
-            modifier = Modifier.padding(innerPadding)
-          )
+@AndroidEntryPoint
+class MainActivity : FragmentActivity() {
+
+    @Inject
+    lateinit var securityManager: SecurityManager
+
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            val isScreenProtectionEnabled by userPreferencesRepository.screenCaptureProtection.collectAsState(initial = false)
+
+            LaunchedEffect(isScreenProtectionEnabled) {
+                securityManager.applyScreenProtection(this@MainActivity, isScreenProtectionEnabled)
+            }
+
+            CephalonGTDTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    CephalonNavGraph()
+                }
+            }
         }
-      }
     }
-  }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-  Text(
-    text = "Hello $name!",
-    modifier = modifier
-  )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-  CephalonGTDTheme {
-    Greeting("Android")
-  }
 }
