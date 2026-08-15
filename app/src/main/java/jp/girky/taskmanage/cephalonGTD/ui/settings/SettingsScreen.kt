@@ -80,6 +80,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setUserPin(pin: String?) {
+        viewModelScope.launch {
+            userPreferencesRepository.setUserPin(pin)
+        }
+    }
+
     fun setScreenProtection(enabled: Boolean, activity: Activity) {
         viewModelScope.launch {
             userPreferencesRepository.setScreenCaptureProtection(enabled)
@@ -107,6 +113,52 @@ fun SettingsScreen(
         AuthType.BIOMETRIC to "生体認証 / 端末認証",
         AuthType.PIN to "アプリ専用PINコード (Keystore暗号化)"
     )
+
+    var showPinDialog by remember { mutableStateOf(false) }
+    var inputPin by remember { mutableStateOf("") }
+
+    if (showPinDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showPinDialog = false },
+            title = { Text("4桁PINコードの設定") },
+            text = {
+                Column {
+                    Text("アプリ起動時および復帰時のロック解除に使用する4桁のPINを入力してください。", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = inputPin,
+                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) inputPin = it },
+                        label = { Text("PINコード (4桁数字)") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
+                            autoCorrectEnabled = false
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        if (inputPin.length == 4) {
+                            viewModel.setUserPin(inputPin)
+                            viewModel.setAuthType(AuthType.PIN)
+                            showPinDialog = false
+                            inputPin = ""
+                        }
+                    },
+                    enabled = inputPin.length == 4
+                ) {
+                    Text("設定して有効化")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showPinDialog = false }) {
+                    Text("キャンセル")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -176,13 +228,20 @@ fun SettingsScreen(
                     // ラジオボタン項目
                     authOptions.forEachIndexed { index, (type, label) ->
                         val shape = getSegmentedShape(index = index + 1, count = authOptions.size + 1)
+                        val onSelect = {
+                            if (type == AuthType.PIN) {
+                                showPinDialog = true
+                            } else {
+                                viewModel.setAuthType(type)
+                            }
+                        }
                         Surface(
                             shape = shape,
                             color = MaterialTheme.colorScheme.surface,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(shape)
-                                .clickable { viewModel.setAuthType(type) }
+                                .clickable { onSelect() }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -190,7 +249,7 @@ fun SettingsScreen(
                             ) {
                                 RadioButton(
                                     selected = currentAuthType == type,
-                                    onClick = { viewModel.setAuthType(type) }
+                                    onClick = { onSelect() }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(text = label, style = MaterialTheme.typography.bodyMedium)

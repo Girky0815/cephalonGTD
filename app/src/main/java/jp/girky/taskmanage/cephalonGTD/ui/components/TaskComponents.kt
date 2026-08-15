@@ -353,6 +353,20 @@ fun TaskCardItem(
                         }
                     }
 
+                    if (task.isStalled) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                text = "⚠️ 停滞中",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
                     Text(
                         text = "約${task.estimatedMinutes}分",
                         style = MaterialTheme.typography.bodySmall,

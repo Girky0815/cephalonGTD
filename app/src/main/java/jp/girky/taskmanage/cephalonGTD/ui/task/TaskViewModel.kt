@@ -48,7 +48,15 @@ class TaskViewModel @Inject constructor(
         _isLoadingAi,
         _aiProgressMessage,
         _dailySummaryDialogText
-    ) { tasks, selectedGroup, isLoading, progressMsg, summaryText ->
+    ) { rawTasks, selectedGroup, isLoading, progressMsg, summaryText ->
+        val now = System.currentTimeMillis()
+        val tasks = rawTasks.map { task ->
+            // 決裁待ちが24時間（86400000ms）以上経過、または起案締切超過の場合に停滞と判定
+            val isStalledNow = (task.status == TaskStatus.WAITING_APPROVAL && task.approvalInitiatedAt != null && (now - task.approvalInitiatedAt > 86400000L)) ||
+                    (task.status == TaskStatus.TODO && task.draftingDeadline != null && now > task.draftingDeadline)
+            if (task.isStalled != isStalledNow) task.copy(isStalled = isStalledNow) else task
+        }
+
         val filteredTasks = if (selectedGroup == "すべて") {
             tasks
         } else {
@@ -95,6 +103,11 @@ class TaskViewModel @Inject constructor(
 
         viewModelScope.launch {
             val isTwoMin = trimmed.length < 15 && (trimmed.contains("確認") || trimmed.contains("返信"))
+            val now = System.currentTimeMillis()
+            // 決裁リードタイム（1日＝86400000ms）を逆算した起案締切日の自動算出
+            val finalDl = if (requiresApproval) now + (3 * 86400000L) else null
+            val draftDl = if (requiresApproval) now + 86400000L else null
+
             val newTask = TaskItem(
                 id = UUID.randomUUID().toString(),
                 groupId = if (groupId == "すべて") "default" else groupId,
@@ -106,7 +119,9 @@ class TaskViewModel @Inject constructor(
                 estimatedMinutes = if (isTwoMin) 2 else 15,
                 isTwoMinuteRule = isTwoMin,
                 priorityScore = if (requiresApproval) 70 else 50,
-                createdAt = System.currentTimeMillis()
+                draftingDeadline = draftDl,
+                finalDeadline = finalDl,
+                createdAt = now
             )
             taskRepository.upsertTask(newTask)
         }
