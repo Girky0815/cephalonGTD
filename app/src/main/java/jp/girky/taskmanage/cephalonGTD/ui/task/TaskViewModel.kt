@@ -163,6 +163,43 @@ class TaskViewModel @Inject constructor(
         }
     }
 
+    // ユーザー自身によるサブタスクの追加
+    fun addSubTask(task: TaskItem, subTaskTitle: String) {
+        val trimmed = subTaskTitle.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            val newSubTask = WbsSubTask(
+                id = UUID.randomUUID().toString(),
+                title = trimmed,
+                isCompleted = false
+            )
+            val updatedActions = task.nextPhysicalActions + newSubTask
+            taskRepository.upsertTask(task.copy(nextPhysicalActions = updatedActions))
+        }
+    }
+
+    // サブタスクの削除
+    fun deleteSubTask(task: TaskItem, subTaskId: String) {
+        viewModelScope.launch {
+            val updatedActions = task.nextPhysicalActions.filterNot { it.id == subTaskId }
+            taskRepository.upsertTask(task.copy(nextPhysicalActions = updatedActions))
+        }
+    }
+
+    // タスクの締切日（期限）更新
+    fun updateTaskDeadline(task: TaskItem, finalDeadline: Long?) {
+        viewModelScope.launch {
+            taskRepository.upsertTask(task.copy(finalDeadline = finalDeadline))
+        }
+    }
+
+    // タスクの編集・更新
+    fun updateTask(updatedTask: TaskItem) {
+        viewModelScope.launch {
+            taskRepository.upsertTask(updatedTask)
+        }
+    }
+
     fun deleteTask(task: TaskItem) {
         viewModelScope.launch {
             taskRepository.deleteTask(task)

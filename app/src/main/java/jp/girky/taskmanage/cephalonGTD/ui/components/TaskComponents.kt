@@ -20,11 +20,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -37,9 +40,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,9 +53,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -236,6 +244,10 @@ fun TaskCardItem(
     task: TaskItem,
     onStatusAdvance: (TaskItem) -> Unit,
     onSubTaskToggle: (TaskItem, String, Boolean) -> Unit,
+    onAddSubTask: (TaskItem, String) -> Unit = { _, _ -> },
+    onDeleteSubTask: (TaskItem, String) -> Unit = { _, _ -> },
+    onUpdateDeadline: (TaskItem, Long?) -> Unit = { _, _ -> },
+    onUpdateTask: (TaskItem) -> Unit = {},
     onDecompose: (TaskItem) -> Unit,
     onMicroStep: (TaskItem) -> Unit,
     onGenerateDraft: (TaskItem, DraftType) -> Unit,
@@ -247,6 +259,47 @@ fun TaskCardItem(
     var expanded by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
     var showDraftMenu by remember { mutableStateOf(false) }
+    var newSubTaskInput by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = task.finalDeadline ?: System.currentTimeMillis()
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUpdateDeadline(task, datePickerState.selectedDateMillis)
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("設定")
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (task.finalDeadline != null) {
+                        TextButton(
+                            onClick = {
+                                onUpdateDeadline(task, null)
+                                showDatePicker = false
+                            }
+                        ) {
+                            Text("期限をクリア")
+                        }
+                    }
+                    TextButton(onClick = { showDatePicker = false }) {
+                        Text("キャンセル")
+                    }
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Surface(
         shape = shape,
@@ -353,6 +406,25 @@ fun TaskCardItem(
                         }
                     }
 
+                    // 期限表示バッジ
+                    if (task.finalDeadline != null) {
+                        val dlDate = java.time.Instant.ofEpochMilli(task.finalDeadline)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate()
+                        val dlStr = "${dlDate.monthValue}/${dlDate.dayOfMonth}"
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = "📅 期限: $dlStr",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
                     if (task.isStalled) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
@@ -394,38 +466,82 @@ fun TaskCardItem(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // WBS サブタスク一覧
-                if (task.nextPhysicalActions.isNotEmpty()) {
-                    Text(
-                        text = "WBS / 行動ステップ:",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    task.nextPhysicalActions.forEach { subTask ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp)
+                // WBS サブタスク一覧 & ユーザー自らの追加
+                Text(
+                    text = "WBS / 行動ステップ:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                task.nextPhysicalActions.forEach { subTask ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                    ) {
+                        Checkbox(
+                            checked = subTask.isCompleted,
+                            onCheckedChange = { onSubTaskToggle(task, subTask.id, it) },
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = subTask.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textDecoration = if (subTask.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                            color = if (subTask.isCompleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { onDeleteSubTask(task, subTask.id) },
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Checkbox(
-                                checked = subTask.isCompleted,
-                                onCheckedChange = { onSubTaskToggle(task, subTask.id, it) },
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = subTask.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textDecoration = if (subTask.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                                color = if (subTask.isCompleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "サブタスク削除",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
+
+                // サブタスク手動追加入力行
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newSubTaskInput,
+                        onValueChange = { newSubTaskInput = it },
+                        placeholder = { Text("サブタスクを追加...", style = MaterialTheme.typography.bodySmall) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = {
+                            if (newSubTaskInput.isNotBlank()) {
+                                onAddSubTask(task, newSubTaskInput)
+                                newSubTaskInput = ""
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "追加",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // 下書きドラフト表示エリア
                 if (!task.draftContent.isNullOrBlank()) {
@@ -476,6 +592,23 @@ fun TaskCardItem(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    // 期限設定ボタン
+                    OutlinedButton(
+                        onClick = { showDatePicker = true },
+                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Event,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (task.finalDeadline != null) "期限変更" else "期限設定",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+
                     OutlinedButton(
                         onClick = { onDecompose(task) },
                         contentPadding = ButtonDefaults.ButtonWithIconContentPadding
