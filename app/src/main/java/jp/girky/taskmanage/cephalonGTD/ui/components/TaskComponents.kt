@@ -240,23 +240,32 @@ fun TaskCardItem(
     onMicroStep: (TaskItem) -> Unit,
     onGenerateDraft: (TaskItem, DraftType) -> Unit,
     onDelete: (TaskItem) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp),
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface
 ) {
     var expanded by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
     var showDraftMenu by remember { mutableStateOf(false) }
 
-    Column(
+    Surface(
+        shape = shape,
+        color = containerColor,
         modifier = modifier
             .fillMaxWidth()
+            .clip(shape)
             .clickable { expanded = !expanded }
-            .padding(vertical = 12.dp, horizontal = 16.dp)
-            .animateContentSize()
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 16.dp)
+                .animateContentSize()
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
             // ステータスに応じたチェックボックス/アクションボタン
             when (task.status) {
                 TaskStatus.TODO -> {
@@ -523,4 +532,5 @@ fun TaskCardItem(
             }
         }
     }
+}
 }

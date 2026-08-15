@@ -291,7 +291,7 @@ fun TaskScreen(
                 }
             }
 
-            // 要決裁 / 決裁待ちタスクコンテナ
+            // 要決裁 / 決裁待ちタスクコンテナ (Segmented List)
             val waitingApprovalTasks = uiState.tasks.filter { it.status == TaskStatus.WAITING_APPROVAL }
             if (waitingApprovalTasks.isNotEmpty()) {
                 item {
@@ -304,34 +304,29 @@ fun TaskScreen(
                 }
 
                 item {
-                    Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f)
-                        ),
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
-                            waitingApprovalTasks.forEachIndexed { index, task ->
-                                TaskCardItem(
-                                    task = task,
-                                    onStatusAdvance = { viewModel.advanceTaskStatus(it) },
-                                    onSubTaskToggle = { t, sId, c -> viewModel.toggleSubTask(t, sId, c) },
-                                    onDecompose = { viewModel.decomposeTaskWbs(it) },
-                                    onMicroStep = { viewModel.generateMicroStep(it) },
-                                    onGenerateDraft = { t, dType -> viewModel.generateDraft(t, dType) },
-                                    onDelete = { viewModel.deleteTask(it) }
-                                )
-                                if (index < waitingApprovalTasks.size - 1) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                }
-                            }
+                        waitingApprovalTasks.forEachIndexed { index, task ->
+                            val shape = getSegmentedShape(index = index, count = waitingApprovalTasks.size)
+                            TaskCardItem(
+                                task = task,
+                                onStatusAdvance = { viewModel.advanceTaskStatus(it) },
+                                onSubTaskToggle = { t, sId, c -> viewModel.toggleSubTask(t, sId, c) },
+                                onDecompose = { viewModel.decomposeTaskWbs(it) },
+                                onMicroStep = { viewModel.generateMicroStep(it) },
+                                onGenerateDraft = { t, dType -> viewModel.generateDraft(t, dType) },
+                                onDelete = { viewModel.deleteTask(it) },
+                                shape = shape,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f)
+                            )
                         }
                     }
                 }
             }
 
-            // 通常 TODO タスクリスト
+            // 通常 TODO タスクリスト (Segmented List)
             val todoTasks = uiState.tasks.filter { it.status == TaskStatus.TODO }
             item {
                 Text(
@@ -343,28 +338,23 @@ fun TaskScreen(
 
             if (todoTasks.isNotEmpty()) {
                 item {
-                    Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
-                            todoTasks.forEachIndexed { index, task ->
-                                TaskCardItem(
-                                    task = task,
-                                    onStatusAdvance = { viewModel.advanceTaskStatus(it) },
-                                    onSubTaskToggle = { t, sId, c -> viewModel.toggleSubTask(t, sId, c) },
-                                    onDecompose = { viewModel.decomposeTaskWbs(it) },
-                                    onMicroStep = { viewModel.generateMicroStep(it) },
-                                    onGenerateDraft = { t, dType -> viewModel.generateDraft(t, dType) },
-                                    onDelete = { viewModel.deleteTask(it) }
-                                )
-                                if (index < todoTasks.size - 1) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                }
-                            }
+                        todoTasks.forEachIndexed { index, task ->
+                            val shape = getSegmentedShape(index = index, count = todoTasks.size)
+                            TaskCardItem(
+                                task = task,
+                                onStatusAdvance = { viewModel.advanceTaskStatus(it) },
+                                onSubTaskToggle = { t, sId, c -> viewModel.toggleSubTask(t, sId, c) },
+                                onDecompose = { viewModel.decomposeTaskWbs(it) },
+                                onMicroStep = { viewModel.generateMicroStep(it) },
+                                onGenerateDraft = { t, dType -> viewModel.generateDraft(t, dType) },
+                                onDelete = { viewModel.deleteTask(it) },
+                                shape = shape,
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
                         }
                     }
                 }
@@ -385,7 +375,7 @@ fun TaskScreen(
                 }
             }
 
-            // 完了済みタスク (DONE)
+            // 完了済みタスク (DONE) (Segmented List)
             val doneTasks = uiState.tasks.filter { it.status == TaskStatus.DONE }
             if (doneTasks.isNotEmpty()) {
                 item {
@@ -398,28 +388,23 @@ fun TaskScreen(
                 }
 
                 item {
-                    Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-                        ),
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
-                            doneTasks.forEachIndexed { index, task ->
-                                TaskCardItem(
-                                    task = task,
-                                    onStatusAdvance = { viewModel.advanceTaskStatus(it) },
-                                    onSubTaskToggle = { t, sId, c -> viewModel.toggleSubTask(t, sId, c) },
-                                    onDecompose = { viewModel.decomposeTaskWbs(it) },
-                                    onMicroStep = { viewModel.generateMicroStep(it) },
-                                    onGenerateDraft = { t, dType -> viewModel.generateDraft(t, dType) },
-                                    onDelete = { viewModel.deleteTask(it) }
-                                )
-                                if (index < doneTasks.size - 1) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                }
-                            }
+                        doneTasks.forEachIndexed { index, task ->
+                            val shape = getSegmentedShape(index = index, count = doneTasks.size)
+                            TaskCardItem(
+                                task = task,
+                                onStatusAdvance = { viewModel.advanceTaskStatus(it) },
+                                onSubTaskToggle = { t, sId, c -> viewModel.toggleSubTask(t, sId, c) },
+                                onDecompose = { viewModel.decomposeTaskWbs(it) },
+                                onMicroStep = { viewModel.generateMicroStep(it) },
+                                onGenerateDraft = { t, dType -> viewModel.generateDraft(t, dType) },
+                                onDelete = { viewModel.deleteTask(it) },
+                                shape = shape,
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
@@ -481,3 +466,33 @@ fun TaskScreen(
         )
     }
 }
+
+/**
+ * SegmentedList用アイテム形状算出ヘルパー
+ * 先頭は上部角丸、末尾は下部角丸、中間は矩形（角丸4dp）、単一アイテムは完全角丸
+ */
+@Composable
+fun getSegmentedShape(
+    index: Int,
+    count: Int,
+    outerCornerRadius: androidx.compose.ui.unit.Dp = 20.dp,
+    innerCornerRadius: androidx.compose.ui.unit.Dp = 4.dp
+): androidx.compose.ui.graphics.Shape {
+    return when {
+        count == 1 -> RoundedCornerShape(outerCornerRadius)
+        index == 0 -> RoundedCornerShape(
+            topStart = outerCornerRadius,
+            topEnd = outerCornerRadius,
+            bottomStart = innerCornerRadius,
+            bottomEnd = innerCornerRadius
+        )
+        index == count - 1 -> RoundedCornerShape(
+            topStart = innerCornerRadius,
+            topEnd = innerCornerRadius,
+            bottomStart = outerCornerRadius,
+            bottomEnd = outerCornerRadius
+        )
+        else -> RoundedCornerShape(innerCornerRadius)
+    }
+}
+
