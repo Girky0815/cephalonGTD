@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NoPhotography
@@ -57,10 +59,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import jp.girky.taskmanage.cephalonGTD.ai.AiDiagnosticsResult
+import jp.girky.taskmanage.cephalonGTD.ai.AiEngine
+import kotlinx.coroutines.flow.MutableStateFlow
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    val securityManager: SecurityManager
+    val securityManager: SecurityManager,
+    private val aiEngine: AiEngine
 ) : ViewModel() {
     val authType: StateFlow<AuthType> = userPreferencesRepository.authType.stateIn(
         scope = viewModelScope,
@@ -73,6 +80,24 @@ class SettingsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = false
     )
+
+    private val _isDiagnosingAi = MutableStateFlow(false)
+    val isDiagnosingAi: StateFlow<Boolean> = _isDiagnosingAi
+
+    private val _aiDiagnosticsResult = MutableStateFlow<AiDiagnosticsResult?>(null)
+    val aiDiagnosticsResult: StateFlow<AiDiagnosticsResult?> = _aiDiagnosticsResult
+
+    fun runAiDiagnostics(testPrompt: String = "こんにちは。10文字以内で挨拶を返してください。") {
+        viewModelScope.launch {
+            _isDiagnosingAi.value = true
+            try {
+                val result = aiEngine.diagnoseGeminiNano(testPrompt)
+                _aiDiagnosticsResult.value = result
+            } finally {
+                _isDiagnosingAi.value = false
+            }
+        }
+    }
 
     fun setAuthType(type: AuthType) {
         viewModelScope.launch {
@@ -302,6 +327,121 @@ fun SettingsScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            // Gemini Nano / AICore オンデバイスAI 診断セクション
+            item {
+                Text(
+                    text = "オンデバイス AI (Gemini Nano / AICore)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            item {
+                val shape = RoundedCornerShape(20.dp)
+                val isDiagnosing by viewModel.isDiagnosingAi.collectAsState()
+                val diagnosticsResult by viewModel.aiDiagnosticsResult.collectAsState()
+
+                Surface(
+                    shape = shape,
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Gemini Nano / AICore 動作チェック",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "AICoreの検出、利用可能モデルの確認、テスト推論を実行",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (diagnosticsResult != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (diagnosticsResult!!.isSuccess) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "【診断結果】",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "・AICore パッケージ: ${if (diagnosticsResult!!.isAiCoreInstalled) "インストール済み (${diagnosticsResult!!.aiCoreVersion})" else "未検出 / 未インストール"}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    Text(
+                                        text = "・利用可能モデル: ${diagnosticsResult!!.availableModels.joinToString(", ")}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    if (diagnosticsResult!!.testPromptResult != null) {
+                                        Text(
+                                            text = "・テスト応答: 「${diagnosticsResult!!.testPromptResult}」",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "・状態: ${diagnosticsResult!!.message}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (diagnosticsResult!!.isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        FilledTonalButton(
+                            onClick = { viewModel.runAiDiagnostics() },
+                            enabled = !isDiagnosing,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isDiagnosing) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("AICore / Gemini Nano 診断中...")
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Gemini Nano 動作チェックを実行")
+                            }
+                        }
                     }
                 }
             }

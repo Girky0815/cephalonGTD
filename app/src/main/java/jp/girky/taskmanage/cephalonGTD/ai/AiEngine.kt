@@ -21,8 +21,18 @@ enum class DraftType(val displayName: String) {
     REPLY_MESSAGE("返信・連絡文面")
 }
 
+data class AiDiagnosticsResult(
+    val isAiCoreInstalled: Boolean,
+    val aiCoreVersion: String?,
+    val availableModels: List<String>,
+    val testPromptResult: String?,
+    val isSuccess: Boolean,
+    val message: String
+)
+
 interface AiEngine {
     suspend fun isAvailable(): Boolean
+    suspend fun diagnoseGeminiNano(testPrompt: String = "こんにちは。10文字以内で挨拶を返してください。"): AiDiagnosticsResult
     suspend fun decomposeWbs(taskText: String): List<WbsSubTask>
     suspend fun generateMicroStep(taskText: String): WbsSubTask
     suspend fun analyzePriorityAndMetadata(taskText: String): TaskMetadataResult

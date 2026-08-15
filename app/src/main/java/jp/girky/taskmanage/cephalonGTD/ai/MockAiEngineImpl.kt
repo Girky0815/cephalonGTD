@@ -11,6 +11,17 @@ import javax.inject.Singleton
 class MockAiEngineImpl @Inject constructor() : AiEngine {
     override suspend fun isAvailable(): Boolean = true
 
+    override suspend fun diagnoseGeminiNano(testPrompt: String): AiDiagnosticsResult {
+        return AiDiagnosticsResult(
+            isAiCoreInstalled = false,
+            aiCoreVersion = "N/A (Mock/Fallback)",
+            availableModels = listOf("Gemini Nano (Mock Engine)"),
+            testPromptResult = "こんにちは！オンデバイスAIモックです。",
+            isSuccess = true,
+            message = "AICore未検出のため、内蔵ルールベースモックエンジンが正常稼働しています。"
+        )
+    }
+
     override suspend fun decomposeWbs(taskText: String): List<WbsSubTask> {
         val clean = taskText.trim()
         val actions = when {

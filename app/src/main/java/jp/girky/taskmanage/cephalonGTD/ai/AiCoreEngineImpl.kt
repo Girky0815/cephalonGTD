@@ -11,12 +11,16 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import android.content.Context
+import android.content.pm.PackageManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AiCoreEngineImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val fallbackEngine: MockAiEngineImpl
 ) : AiEngine {
 
@@ -47,6 +51,58 @@ class AiCoreEngineImpl @Inject constructor(
         } catch (e: Throwable) {
             false
         }
+    }
+
+    override suspend fun diagnoseGeminiNano(testPrompt: String): AiDiagnosticsResult {
+        var isAiCoreInstalled = false
+        var aiCoreVersionName: String? = null
+        val aiCorePackages = listOf("com.google.android.aicore", "com.google.android.as")
+
+        for (pkg in aiCorePackages) {
+            try {
+                val pInfo = context.packageManager.getPackageInfo(pkg, 0)
+                isAiCoreInstalled = true
+                aiCoreVersionName = "$pkg (${pInfo.versionName ?: "v${pInfo.longVersionCode}"})"
+                break
+            } catch (e: PackageManager.NameNotFoundException) {
+                // 次のパッケージを探索
+            }
+        }
+
+        val availableModels = mutableListOf<String>()
+        var testResult: String? = null
+        var isSuccess = false
+        var statusMsg = ""
+
+        try {
+            val model = getModel()
+            if (model != null) {
+                availableModels.add("Gemini Nano (オンデバイス AICore)")
+                val response = model.generateContent(testPrompt)
+                testResult = response.text
+                if (!testResult.isNullOrBlank()) {
+                    isSuccess = true
+                    statusMsg = "Gemini Nano が正常に応答しました。オンデバイス推論が完全に機能しています。"
+                } else {
+                    statusMsg = "AICore に接続されましたが、空の応答が返されました。"
+                }
+            } else {
+                availableModels.add("なし (フォールバックモックが動作中)")
+                statusMsg = "端末に Gemini Nano / AICore モデルが未ダウンロードまたは初期化できませんでした。"
+            }
+        } catch (e: Throwable) {
+            statusMsg = "AICore実行エラー: ${e.localizedMessage ?: e.message}"
+            availableModels.add("なし (エラー発生)")
+        }
+
+        return AiDiagnosticsResult(
+            isAiCoreInstalled = isAiCoreInstalled,
+            aiCoreVersion = aiCoreVersionName ?: "未検出",
+            availableModels = availableModels,
+            testPromptResult = testResult,
+            isSuccess = isSuccess,
+            message = statusMsg
+        )
     }
 
     override suspend fun decomposeWbs(taskText: String): List<WbsSubTask> {
