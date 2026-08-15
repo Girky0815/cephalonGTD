@@ -3,4 +3,8 @@
   <component name="Kotlin2JvmCompilerArguments">
     <option name="jvmTarget" value="23" />
   </component>
+  <component name="KotlinCommonCompilerArguments">
+    <option name="apiVersion" value="2.2" />
+    <option name="languageVersion" value="2.2" />
+  </component>
 </project>
