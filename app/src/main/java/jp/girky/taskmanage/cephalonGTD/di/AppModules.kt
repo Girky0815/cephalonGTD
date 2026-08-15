@@ -8,6 +8,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import jp.girky.taskmanage.cephalonGTD.ai.AiCoreEngineImpl
 import jp.girky.taskmanage.cephalonGTD.ai.AiEngine
 import jp.girky.taskmanage.cephalonGTD.ai.MockAiEngineImpl
 import jp.girky.taskmanage.cephalonGTD.data.local.AppDatabase
@@ -50,6 +51,6 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAiEngine(
-        mockAiEngineImpl: MockAiEngineImpl
+        aiCoreEngineImpl: AiCoreEngineImpl
     ): AiEngine
 }

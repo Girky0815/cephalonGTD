@@ -70,6 +70,9 @@ dependencies {
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.biometric)
 
+  // Google AI Edge (AICore / Gemini Nano)
+  implementation(libs.google.ai.edge.aicore)
+
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   androidTestImplementation(libs.androidx.espresso.core)
